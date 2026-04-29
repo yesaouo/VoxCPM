@@ -6,3 +6,5 @@ python app.py --port 8808  # then open in browser: http://localhost:8808
 
 # pptx
 pip install pywin32
+pip install whisperx
+pip3 install --force-reinstall torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130

@@ -52,6 +52,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+pptx = [
+    "pywin32; platform_system == 'Windows'",
+    "whisperx",
+]
 dev = [
     "pytest>=6.0",
     "pytest-cov>=2.0",

@@ -35,13 +35,29 @@ PPTX_DEFAULT_PAUSE_SECONDS = 0.35
 PPTX_EMPTY_SLIDE_SECONDS = 1.5
 PPTX_DEFAULT_AUDIO_SR = 24000
 PPTX_DEFAULT_SUBTITLE_LANGUAGE = "zh"
+PPTX_SUBTITLE_LANGUAGE_CHOICES = [
+    ("中文（zh）", "zh"),
+    ("英文（en）", "en"),
+    ("日文（ja）", "ja"),
+    ("韓文（ko）", "ko"),
+    ("法文（fr）", "fr"),
+    ("德文（de）", "de"),
+    ("西班牙文（es）", "es"),
+    ("義大利文（it）", "it"),
+    ("葡萄牙文（pt）", "pt"),
+    ("俄文（ru）", "ru"),
+]
 PPTX_SUBTITLE_MAX_SECONDS = 5.0
 PPTX_SUBTITLE_MAX_CHARS = 24
 
 DEFAULT_TARGET_TEXT = "請在這裡輸入要合成的文字。"
 
 INTRO_TEXT = """
-# VoxCPM2 Ultimate Cloning
+# VoxCPM2 Voice & Slide Narration Studio
+
+<div style="font-size: 0.8rem; color: #666; margin-top: -0.5rem;">
+Made by Yu-Jie Li
+</div>
 
 參考音訊建議約 30 秒；超過 45 秒會自動截斷，只使用前 45 秒。
 """
@@ -1116,133 +1132,6 @@ class VoxCPMDemo:
             _cleanup_temp_audio(prepared_audio_path, should_cleanup)
 
 
-def _create_single_audio_interface(demo: VoxCPMDemo):
-    gr.set_static_paths(paths=[Path.cwd().absolute() / "assets"])
-
-    def _generate(
-        ref_wav: Optional[str],
-        transcript_text: str,
-        text: str,
-        cfg_value: float,
-        do_normalize: bool,
-        denoise: bool,
-        dit_steps: int,
-    ):
-        return demo.generate_tts_audio(
-            text_input=text,
-            reference_wav_path_input=ref_wav,
-            prompt_text=transcript_text,
-            cfg_value_input=cfg_value,
-            do_normalize=do_normalize,
-            denoise=denoise,
-            inference_timesteps=int(dit_steps),
-        )
-
-    def _run_asr(audio_path: Optional[str]):
-        if not audio_path:
-            raise gr.Error("請先上傳參考音訊。")
-        try:
-            logger.info("Running ASR on reference audio...")
-            asr_text = demo.prompt_wav_recognition(audio_path)
-            logger.info("ASR result: %s...", asr_text[:60])
-            return gr.update(value=asr_text)
-        except Exception as exc:
-            logger.warning("ASR recognition failed: %s", exc)
-            raise gr.Error("自動辨識失敗，請手動貼上逐字稿。") from exc
-
-    with gr.Blocks(
-        title="VoxCPM2 Ultimate Cloning",
-        theme=_APP_THEME,
-        css=_CUSTOM_CSS,
-    ) as interface:
-        gr.HTML(
-            '<div class="logo-container">'
-            '<img src="/gradio_api/file=assets/voxcpm_logo.png" alt="VoxCPM Logo">'
-            "</div>"
-        )
-        gr.Markdown(INTRO_TEXT)
-
-        with gr.Row():
-            with gr.Column(scale=1):
-                reference_wav = gr.Audio(
-                    sources=["upload", "microphone"],
-                    type="filepath",
-                    label="參考音訊",
-                )
-                transcript_text = gr.Textbox(
-                    value="",
-                    label="參考音訊逐字稿（Transcript of Reference Audio）",
-                    placeholder="貼上參考音訊的逐字稿，或用下方按鈕自動辨識。若音訊超過 45 秒，請填寫前 45 秒逐字稿。",
-                    lines=5,
-                )
-                transcribe_btn = gr.Button("自動辨識參考音訊", variant="secondary")
-                text = gr.Textbox(
-                    value=DEFAULT_TARGET_TEXT,
-                    label="要合成的文字",
-                    lines=5,
-                )
-
-                with gr.Accordion("進階設定（Advanced Settings）", open=False):
-                    denoise_prompt_audio = gr.Checkbox(
-                        value=False,
-                        label="參考音訊增強",
-                        elem_classes=["switch-toggle"],
-                        info="生成前先對參考音訊套用 ZipEnhancer 降噪。",
-                    )
-                    normalize_text = gr.Checkbox(
-                        value=False,
-                        label="文字正規化",
-                        elem_classes=["switch-toggle"],
-                        info="使用 wetext 正規化數字、日期與縮寫。",
-                    )
-                    cfg_value = gr.Slider(
-                        minimum=1.0,
-                        maximum=3.0,
-                        value=2.0,
-                        step=0.1,
-                        label="CFG",
-                        info="數值越高越貼近參考音訊與逐字稿，越低變化較多。",
-                    )
-                    dit_steps = gr.Slider(
-                        minimum=1,
-                        maximum=50,
-                        value=10,
-                        step=1,
-                        label="LocDiT steps",
-                        info="步數越高可能提升品質，但生成速度較慢。",
-                    )
-
-                run_btn = gr.Button("生成語音", variant="primary", size="lg")
-
-            with gr.Column(scale=1):
-                audio_output = gr.Audio(label="生成結果")
-
-        transcribe_btn.click(
-            fn=_run_asr,
-            inputs=[reference_wav],
-            outputs=[transcript_text],
-            show_progress=True,
-        )
-
-        run_btn.click(
-            fn=_generate,
-            inputs=[
-                reference_wav,
-                transcript_text,
-                text,
-                cfg_value,
-                normalize_text,
-                denoise_prompt_audio,
-                dit_steps,
-            ],
-            outputs=[audio_output],
-            show_progress=True,
-            api_name="generate",
-        )
-
-    return interface
-
-
 def create_demo_interface(demo: VoxCPMDemo):
     gr.set_static_paths(paths=[Path.cwd().absolute() / "assets"])
 
@@ -1309,15 +1198,10 @@ def create_demo_interface(demo: VoxCPMDemo):
             raise gr.Error("自動辨識失敗，請手動貼上逐字稿。") from exc
 
     with gr.Blocks(
-        title="VoxCPM2 Ultimate Cloning",
+        title="VoxCPM2 Voice & Slide Narration Studio",
         theme=_APP_THEME,
         css=_CUSTOM_CSS,
     ) as interface:
-        gr.HTML(
-            '<div class="logo-container">'
-            '<img src="/gradio_api/file=assets/voxcpm_logo.png" alt="VoxCPM Logo">'
-            "</div>"
-        )
         gr.Markdown(INTRO_TEXT)
 
         with gr.Tabs():
@@ -1331,7 +1215,7 @@ def create_demo_interface(demo: VoxCPMDemo):
                         )
                         transcript_text = gr.Textbox(
                             value="",
-                            label="參考音訊逐字稿（Transcript of Reference Audio）",
+                            label="參考音訊逐字稿",
                             placeholder="貼上參考音訊的逐字稿，或用下方按鈕自動辨識。若音訊超過 45 秒，請填寫前 45 秒逐字稿。",
                             lines=5,
                         )
@@ -1342,7 +1226,7 @@ def create_demo_interface(demo: VoxCPMDemo):
                             lines=5,
                         )
 
-                        with gr.Accordion("進階設定（Advanced Settings）", open=False):
+                        with gr.Accordion("進階設定", open=False):
                             denoise_prompt_audio = gr.Checkbox(
                                 value=False,
                                 label="參考音訊增強",
@@ -1409,6 +1293,13 @@ def create_demo_interface(demo: VoxCPMDemo):
                             file_types=[".pptx"],
                             type="filepath",
                         )
+                        subtitle_language = gr.Dropdown(
+                            choices=PPTX_SUBTITLE_LANGUAGE_CHOICES,
+                            value=PPTX_DEFAULT_SUBTITLE_LANGUAGE,
+                            label="備忘稿語言",
+                            info="請選擇備忘稿的語言。",
+                            allow_custom_value=False,
+                        )
                         pptx_reference_wav = gr.Audio(
                             sources=["upload", "microphone"],
                             type="filepath",
@@ -1416,13 +1307,13 @@ def create_demo_interface(demo: VoxCPMDemo):
                         )
                         pptx_transcript_text = gr.Textbox(
                             value="",
-                            label="參考音訊逐字稿（Transcript of Reference Audio）",
+                            label="參考音訊逐字稿",
                             placeholder="貼上參考音訊的逐字稿，或用下方按鈕自動辨識。",
                             lines=5,
                         )
                         pptx_transcribe_btn = gr.Button("自動辨識參考音訊", variant="secondary")
 
-                        with gr.Accordion("進階設定（Advanced Settings）", open=False):
+                        with gr.Accordion("進階設定", open=False):
                             pptx_denoise_prompt_audio = gr.Checkbox(
                                 value=False,
                                 label="參考音訊增強",
@@ -1467,22 +1358,15 @@ def create_demo_interface(demo: VoxCPMDemo):
                             )
                             enable_subtitles = gr.Checkbox(
                                 value=True,
-                                label="使用 WhisperX 對齊講稿產生字幕",
+                                label="產生字幕檔",
                                 elem_classes=["switch-toggle"],
-                                info="使用每頁備忘稿對齊已產生的該頁音訊，不重新轉錄。",
-                            )
-                            subtitle_language = gr.Textbox(
-                                value=PPTX_DEFAULT_SUBTITLE_LANGUAGE,
-                                label="字幕對齊語言碼",
-                                placeholder="zh",
-                                info="中文請用 zh；需 WhisperX 支援的 alignment language code。",
-                                lines=1,
+                                info="開啟後，會根據每頁備忘稿產生 SRT 字幕檔。",
                             )
                             burn_subtitles = gr.Checkbox(
                                 value=True,
-                                label="把字幕燒錄到影片",
+                                label="在影片中顯示字幕",
                                 elem_classes=["switch-toggle"],
-                                info="同時會輸出 SRT；若 ffmpeg 不支援字幕濾鏡，仍會回傳未燒錄影片與 SRT。",
+                                info="開啟後，字幕會直接顯示在影片畫面上。",
                             )
 
                         pptx_run_btn = gr.Button("製作影片", variant="primary", size="lg")
